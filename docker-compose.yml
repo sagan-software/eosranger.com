@@ -1,0 +1,12 @@
+version: "3"
+
+services:
+
+  arango:
+    build:
+      context: arango
+    image: arangodb/arangodb:devel
+    ports:
+      - 8529:8529 
+    environment:
+      - ARANGO_ROOT_PASSWORD=openSesame
