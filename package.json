@@ -4,9 +4,13 @@
 	"main": "index.js",
 	"license": "MIT",
 	"scripts": {
-		"clean": "bsb -clean-world",
-		"build": "yarn clean && bsb -make-world",
-		"start-bsb": "bsb -make-world -w",
+		"clean-bsb": "bsb -clean-world",
+		"clean-scripts": "rm scripts/*.js",
+		"clean": "yarn clean-bsb",
+		"build-bsb": "yarn clean-bsb && bsb -make-world",
+		"build-scripts": "yarn clean-scripts && webpack",
+		"build": "yarn build-bsb && yarn build-scripts",
+		"start-bsb": "yarn clean-bsb && bsb -make-world -w",
 		"start-test": "jest --watchAll",
 		"test": "yarn build && jest"
 	},
@@ -16,11 +20,18 @@
 		"@sagan-software/bs-eos": "sagan-software/bs-eos",
 		"@yamadayuki/bs-url": "yamadayuki/bs-url",
 		"arangojs": "^6.4.0",
+		"bluebird": "^3.5.1",
 		"bs-platform": "^4.0.0",
 		"eosjs": "^15.0.6",
+		"glob": "^7.1.2",
+		"hiredis": "^0.5.0",
 		"moment": "^2.22.2",
 		"npmlog": "^4.1.2",
+		"pm2": "^3.0.0",
+		"redis": "^2.8.0",
 		"request": "^2.87.0",
-		"request-promise": "^4.2.2"
+		"request-promise": "^4.2.2",
+		"webpack": "^4.16.1",
+		"webpack-cli": "^3.1.0"
 	}
 }

@@ -21,6 +21,7 @@ module Options = {
     [@bs.optional]
     body: string,
     simple: bool,
+    [@bs.optional]
     time: bool,
     timeout: int,
     headers: Js.Dict.t(string),
@@ -53,6 +54,7 @@ let make =
       ~timeout=0,
       ~headers=?,
       ~encoding=Js.Null_undefined.undefined,
+      ~time=?,
       (),
     ) =>
   Options.t(
@@ -62,7 +64,7 @@ let make =
     ~resolveWithFullResponse=true,
     ~body?,
     ~simple=false,
-    ~time=true,
+    ~time?,
     ~timeout,
     ~headers=headers |> Js.Option.getWithDefault([||]) |> Js.Dict.fromArray,
     ~encoding,
@@ -78,14 +80,31 @@ let make =
        )
        |> Js.Promise.reject
      );
-/* make_({
-     "url": url,
-     "method": method_,
-     "json": json,
-     "body": Js.Nullable.fromOption(body),
-     "resolveWithFullResponse": true,
-     "simple": false,
-     "time": true,
-     "timeout": timeout,
-     "headers": ,
-   }); */
+
+module TimingPhases = {
+  [@bs.deriving abstract]
+  type t = {
+    wait: float,
+    dns: float,
+    tcp: float,
+    firstByte: float,
+    download: float,
+    total: float,
+  };
+};
+
+[@bs.get] external timingPhases : t => Js.Nullable.t(TimingPhases.t) = "";
+
+module Timings = {
+  [@bs.deriving abstract]
+  type t = {
+    socket: float,
+    lookup: float,
+    connect: float,
+    response: float,
+    [@bs.as "end"]
+    end_: float,
+  };
+};
+
+[@bs.get] external timings : t => Js.Nullable.t(Timings.t) = "";

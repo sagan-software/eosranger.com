@@ -45,3 +45,9 @@ possible issues:
 
 - checking for missing block numbers in the DB
 - keeping the DB updated with real-time info
+
+scripts:
+
+- block num finder
+- block fetcher
+- block

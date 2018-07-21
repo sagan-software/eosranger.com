@@ -2,7 +2,9 @@ let dbUser = "root";
 let dbPass = "openSesame";
 let dbName = "eos";
 let throttleTime = 1500;
+let responseTimeMultiplier = 1.5;
 let maxBlocksPerCycle = 5000;
+let reportStatsTimeout = 30000;
 let chainId = "aca376f206b8fc25a6ed44dbdc66547c36c6c33e3a119ffbeaef943642f0e906";
 let endpoints = [|
   "http://104.156.59.166:8888",
@@ -62,7 +64,7 @@ let endpoints = [|
   "http://eu.eosdac.io",
   "http://fn001.eossv.org:80",
   /* "http://jhb.eosio.africa", */
-  "http://mainnet.bpnode.com:8888",
+  /* "http://mainnet.bpnode.com:8888", */
   "http://mainnet.eosarabia.org:2052",
   "http://mainnet.eoscalgary.io",
   "http://mainnet.eoscanada.com",
@@ -80,7 +82,7 @@ let endpoints = [|
   /* "http://node2.eosphere.io", */
   /* "http://node2.liquideos.com", */
   /* "http://node2.zbeos.com:8888", */
-  "http://nodes.eos42.io",
+  /* "http://nodes.eos42.io", */
   /* "http://peer1.eoshuobipool.com:8181",
      "http://peer2.eoshuobipool.com:8181", */
   "http://peer2.eosthu.com:8082",

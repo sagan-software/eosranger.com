@@ -10,3 +10,8 @@ services:
       - 8529:8529 
     environment:
       - ARANGO_ROOT_PASSWORD=openSesame
+
+  redis:
+    image: redis:latest
+    ports:
+      - 6379:6379

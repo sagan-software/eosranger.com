@@ -75,20 +75,18 @@ let chunkArray = (originalArr, chunkSize) => {
   results;
 };
 
-let chunkArrayPromises = (arr: array('a), fn: 'a => 'b, chunkSize) =>
+let chunkPromisesArray = (arr: array('a), fn: 'a => 'b, chunkSize) =>
   Js.Array.reduce(
     (promise, chunk) =>
       promise
-      |> Js.Promise.then_(allResults
-           /* Log.info("chunk", "processing chunk...", chunk |> Js.Array.length); */
-           =>
-             chunk
-             |> Js.Array.map(fn)
-             |> Js.Promise.all
-             |> Js.Promise.then_(results =>
-                  Js.Promise.resolve(Js.Array.concat(allResults, results))
-                )
-           ),
+      |> Js.Promise.then_(allResults =>
+           chunk
+           |> Js.Array.map(fn)
+           |> Js.Promise.all
+           |> Js.Promise.then_(results =>
+                Js.Promise.resolve(Js.Array.concat(allResults, results))
+              )
+         ),
     Js.Promise.resolve([||]),
     chunkArray(arr, chunkSize),
   );

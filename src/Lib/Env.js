@@ -31,7 +31,6 @@ var endpoints = /* array */[
   "http://eosbp-0.atticlab.net",
   "http://eu.eosdac.io",
   "http://fn001.eossv.org:80",
-  "http://mainnet.bpnode.com:8888",
   "http://mainnet.eosarabia.org:2052",
   "http://mainnet.eoscalgary.io",
   "http://mainnet.eoscanada.com",
@@ -41,7 +40,6 @@ var endpoints = /* array */[
   "http://node1.bp2.io",
   "http://node1.eosamericas.com:8888",
   "http://node1.eosvibes.io",
-  "http://nodes.eos42.io",
   "http://peer2.eosthu.com:8082"
 ];
 
@@ -53,7 +51,11 @@ var dbName = "eos";
 
 var throttleTime = 1500;
 
+var responseTimeMultiplier = 1.5;
+
 var maxBlocksPerCycle = 5000;
+
+var reportStatsTimeout = 30000;
 
 var chainId = "aca376f206b8fc25a6ed44dbdc66547c36c6c33e3a119ffbeaef943642f0e906";
 
@@ -61,7 +63,9 @@ exports.dbUser = dbUser;
 exports.dbPass = dbPass;
 exports.dbName = dbName;
 exports.throttleTime = throttleTime;
+exports.responseTimeMultiplier = responseTimeMultiplier;
 exports.maxBlocksPerCycle = maxBlocksPerCycle;
+exports.reportStatsTimeout = reportStatsTimeout;
 exports.chainId = chainId;
 exports.endpoints = endpoints;
 /* No side effect */

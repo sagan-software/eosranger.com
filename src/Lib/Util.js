@@ -121,7 +121,7 @@ function chunkArray(originalArr, chunkSize) {
   return results;
 }
 
-function chunkArrayPromises(arr, fn, chunkSize) {
+function chunkPromisesArray(arr, fn, chunkSize) {
   return chunkArray(arr, chunkSize).reduce((function (promise, chunk) {
                 return promise.then((function (allResults) {
                               return Promise.all(chunk.map(Curry.__1(fn))).then((function (results) {
@@ -155,7 +155,7 @@ exports.promiseToResult = promiseToResult;
 exports.onlySome = onlySome;
 exports.onlyOk = onlyOk;
 exports.chunkArray = chunkArray;
-exports.chunkArrayPromises = chunkArrayPromises;
+exports.chunkPromisesArray = chunkPromisesArray;
 exports.doNothing = doNothing;
 exports.timeoutPromise = timeoutPromise;
 /* partial_arg Not a pure module */

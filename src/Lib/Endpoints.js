@@ -5,7 +5,7 @@ var Url = require("url");
 var Json = require("@glennsl/bs-json/src/Json.bs.js");
 var Util = require("./Util.js");
 var Npmlog = require("npmlog");
-var Request = require("./Request.js");
+var Request = require("../External/Request.js");
 var Eos_Chain = require("@sagan-software/bs-eos/src/Eos_Chain.js");
 var Belt_Array = require("bs-platform/lib/js/belt_Array.js");
 var Json_encode = require("@glennsl/bs-json/src/Json_encode.bs.js");
@@ -26,7 +26,7 @@ function initialStates(endpoints) {
 }
 
 function updateInfoForState(state) {
-  return Util.promiseToResult(Request.make(new Url.URL("/v1/chain/get_info", state[/* endpoint */0]).toString(), undefined, undefined, undefined, 5000, undefined, undefined, /* () */0).then((function (response) {
+  return Util.promiseToResult(Request.make(new Url.URL("/v1/chain/get_info", state[/* endpoint */0]).toString(), undefined, undefined, undefined, 5000, undefined, undefined, undefined, /* () */0).then((function (response) {
                       return Util.parseAndDecodeAsPromise(Eos_Chain.Info[/* decode */0], response.body);
                     }))).then((function (result) {
                 if (result.tag) {
@@ -93,7 +93,7 @@ function getBlock(state, num) {
                                 num
                               ],
                               /* [] */0
-                            ])), 5000, undefined, undefined, /* () */0).then((function (response) {
+                            ])), 5000, undefined, undefined, undefined, /* () */0).then((function (response) {
                       return Util.parseJsonAsPromise(response.body);
                     }))).then((function (result) {
                 if (result.tag) {
