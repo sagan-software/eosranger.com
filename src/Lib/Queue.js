@@ -2,10 +2,7 @@
 'use strict';
 
 
-var Arango = 0;
+var Redis = 0;
 
-var Neo4j = 0;
-
-exports.Arango = Arango;
-exports.Neo4j = Neo4j;
+exports.Redis = Redis;
 /* No side effect */

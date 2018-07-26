@@ -14,6 +14,8 @@ let initialState = endpoint => {
   numSuccess: 0,
 };
 
+let emptyState = initialState("");
+
 let initialStates = endpoints => endpoints |. Belt.Array.map(initialState);
 
 let updateInfoForState = state =>
@@ -52,15 +54,20 @@ type blockNums = {
 
 let getLargestBlockNums = states =>
   states
-  |. Belt.Array.map(state => state.info)
+  |. Belt.Array.map(state => state.info |. Belt.Option.map(i => (state, i)))
   |. Util.onlySome
-  |. Belt.Array.reduce({head: 0, irreversible: 0}, (largestBlockNums, info) =>
+  |. Belt.Array.reduce(
+       (emptyState, {head: 0, irreversible: 0}),
+       ((largestState, largestBlockNums), (state, info)) =>
        info.headBlockNum > largestBlockNums.head ?
-         {
-           head: info.headBlockNum,
-           irreversible: info.lastIrreversibleBlockNum,
-         } :
-         largestBlockNums
+         (
+           state,
+           {
+             head: info.headBlockNum,
+             irreversible: info.lastIrreversibleBlockNum,
+           },
+         ) :
+         (largestState, largestBlockNums)
      );
 
 let onlyWithInfo = states =>

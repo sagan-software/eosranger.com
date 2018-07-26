@@ -2,27 +2,23 @@ let redis = Redis.make();
 
 open Js.Promise;
 
-let findNewBlocks = () =>
+let rec findNewBlocks = () =>
   all2((
-    Database.getLargestBlockNum(),
+    Env.Db.largestBlockNum(),
     Env.endpoints |. Endpoints.initialStates |. Endpoints.updateInfoForStates,
   ))
-  |> then_(((largestDbBlockNum, endpoints)) => {
+  |> then_(((dbBlockNum, endpoints)) => {
+       let (_, liveBlockNums) = Endpoints.getLargestBlockNums(endpoints);
+       let head = liveBlockNums.head;
+       let irreversible = liveBlockNums.irreversible;
+       let diff = head - dbBlockNum;
        Log.info(
          __MODULE__,
-         "Largest block number from database:",
-         largestDbBlockNum,
+         {j|Block numbers: db=$dbBlockNum irreversible=$irreversible head=$head diff=$diff|j},
+         "",
        );
-       let largestEndpointBlockNums =
-         Endpoints.getLargestBlockNums(endpoints);
-       Log.info(
-         __MODULE__,
-         "Largest block number from endpoints:",
-         largestEndpointBlockNums.head,
-       );
-       let startBlockNum =
-         min(largestDbBlockNum + 1, largestEndpointBlockNums.irreversible);
-       let endBlockNum = largestEndpointBlockNums.head;
+       let startBlockNum = min(dbBlockNum + 1, liveBlockNums.irreversible);
+       let endBlockNum = liveBlockNums.head;
        let blockNumChunks =
          Belt.Array.range(startBlockNum, endBlockNum)
          |. Belt.Array.map(string_of_int)
@@ -34,15 +30,27 @@ let findNewBlocks = () =>
                  redis
                  |. Redis.sadd("blockNums", blockNums)
                  |> then_(numAdded => {
-                      Log.info(
-                        __MODULE__,
-                        {j|Added $numAdded items to the blockNums queue|j},
-                        "",
-                      );
+                      if (numAdded > 0) {
+                        Log.info(
+                          __MODULE__,
+                          {j|Added $numAdded items to the blockNums queue|j},
+                          "",
+                        );
+                      };
                       numAdded + totalAdded |. resolve;
                     })
                )
           );
-     });
+     })
+  |> then_(_ => findNewBlocks());
 
-Database.setup() |> then_(_ => findNewBlocks());
+Env.Db.setup()
+|> then_(_ => findNewBlocks())
+|> then_(_ => Env.Db.findMissing())
+|> then_(_ =>
+     Js.Global.setInterval(
+       () => Env.Db.findMissing() |. ignore,
+       15 * 60 * 1000,
+     )
+     |. Js.Promise.resolve
+   );

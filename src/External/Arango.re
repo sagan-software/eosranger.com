@@ -3,6 +3,13 @@ module Cursor = {
 
   [@bs.send]
   external next : t => Js.Promise.t(Js.Nullable.t(Js.Json.t)) = "";
+
+  [@bs.send] external all : t => Js.Promise.t(array(Js.Json.t)) = "";
+
+  [@bs.send]
+  external reduce :
+    (t, ('accu, Js.Json.t) => 'accu, 'accu) => Js.Promise.t('accu) =
+    "";
 };
 
 module Collection = {
@@ -71,6 +78,6 @@ module Db = {
   [@bs.send] external query : (t, string) => Js.Promise.t(Cursor.t) = "";
 
   [@bs.send]
-  external queryVars : (t, string, Js.Json.t) => Js.Promise.t(Cursor.t) =
+  external queryWithVars : (t, string, Js.Json.t) => Js.Promise.t(Cursor.t) =
     "query";
 };

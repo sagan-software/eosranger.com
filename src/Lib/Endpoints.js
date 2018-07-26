@@ -8,6 +8,7 @@ var Npmlog = require("npmlog");
 var Request = require("../External/Request.js");
 var Eos_Chain = require("@sagan-software/bs-eos/src/Eos_Chain.js");
 var Belt_Array = require("bs-platform/lib/js/belt_Array.js");
+var Belt_Option = require("bs-platform/lib/js/belt_Option.js");
 var Json_encode = require("@glennsl/bs-json/src/Json_encode.bs.js");
 var Js_primitive = require("bs-platform/lib/js/js_primitive.js");
 
@@ -21,12 +22,20 @@ function initialState(endpoint) {
         ];
 }
 
+var emptyState = /* record */[
+  /* endpoint */"",
+  /* info */undefined,
+  /* averageResponseTime */1,
+  /* numErrors */0,
+  /* numSuccess */0
+];
+
 function initialStates(endpoints) {
   return Belt_Array.map(endpoints, initialState);
 }
 
 function updateInfoForState(state) {
-  return Util.promiseToResult(Request.make(new Url.URL("/v1/chain/get_info", state[/* endpoint */0]).toString(), undefined, undefined, undefined, 5000, undefined, undefined, undefined, /* () */0).then((function (response) {
+  return Util.promiseToResult(Request.make(new Url.URL("/v1/chain/get_info", state[/* endpoint */0]).toString(), undefined, undefined, undefined, 5000, undefined, undefined, undefined, undefined, /* () */0).then((function (response) {
                       return Util.parseAndDecodeAsPromise(Eos_Chain.Info[/* decode */0], response.body);
                     }))).then((function (result) {
                 if (result.tag) {
@@ -56,19 +65,35 @@ function updateInfoForStates(states) {
 
 function getLargestBlockNums(states) {
   return Belt_Array.reduce(Util.onlySome(Belt_Array.map(states, (function (state) {
-                        return state[/* info */1];
-                      }))), /* record */[
-              /* head */0,
-              /* irreversible */0
-            ], (function (largestBlockNums, info) {
+                        return Belt_Option.map(state[/* info */1], (function (i) {
+                                      return /* tuple */[
+                                              state,
+                                              i
+                                            ];
+                                    }));
+                      }))), /* tuple */[
+              emptyState,
+              /* record */[
+                /* head */0,
+                /* irreversible */0
+              ]
+            ], (function (param, param$1) {
+                var info = param$1[1];
+                var largestBlockNums = param[1];
                 var match = info[/* headBlockNum */1] > largestBlockNums[/* head */0];
                 if (match) {
-                  return /* record */[
-                          /* head */info[/* headBlockNum */1],
-                          /* irreversible */info[/* lastIrreversibleBlockNum */2]
+                  return /* tuple */[
+                          param$1[0],
+                          /* record */[
+                            /* head */info[/* headBlockNum */1],
+                            /* irreversible */info[/* lastIrreversibleBlockNum */2]
+                          ]
                         ];
                 } else {
-                  return largestBlockNums;
+                  return /* tuple */[
+                          param[0],
+                          largestBlockNums
+                        ];
                 }
               }));
 }
@@ -93,7 +118,7 @@ function getBlock(state, num) {
                                 num
                               ],
                               /* [] */0
-                            ])), 5000, undefined, undefined, undefined, /* () */0).then((function (response) {
+                            ])), 5000, undefined, undefined, undefined, undefined, /* () */0).then((function (response) {
                       return Util.parseJsonAsPromise(response.body);
                     }))).then((function (result) {
                 if (result.tag) {
@@ -126,6 +151,7 @@ function getBlock(state, num) {
 }
 
 exports.initialState = initialState;
+exports.emptyState = emptyState;
 exports.initialStates = initialStates;
 exports.updateInfoForState = updateInfoForState;
 exports.updateInfoForStates = updateInfoForStates;

@@ -1,14 +1,11 @@
 open Js.Promise;
 
-let saveBlock = (isIrreversible, json) => {
-  Util.doNothing(isIrreversible);
-  [%bs.raw {|json._key = json.block_num + ""|}] |. ignore;
-  [%bs.raw {|json.irreversible = isIrreversible|}] |. ignore;
-  let saveOpts = Arango.Collection.saveOpts(~overwrite=true, ());
-  Database.db
-  |. Arango.Db.collection("blocks")
-  |. Arango.Collection.saveWithOpts(json, saveOpts);
-};
+type state = array(Endpoints.state);
+
+let initialState = endpoints =>
+  endpoints |. Belt.Array.map(Endpoints.initialState);
+
+let emptyState = [||];
 
 let fetchBlock = (endpoint, num) =>
   Request.make(
@@ -20,6 +17,7 @@ let fetchBlock = (endpoint, num) =>
       |. Json.Encode.object_
       |. Json.stringify,
     ~time=true,
+    ~simple=true,
     (),
   )
   |> then_(response =>
@@ -39,28 +37,60 @@ let fetchBlock = (endpoint, num) =>
      )
   |. Util.promiseToOption;
 
-let redis = Redis.make();
-
 let rec fetchNextBlock = endpoint =>
-  redis
-  |. Redis.spop("blockNums")
+  Env.Q.pop()
   |> then_(blockNum =>
-       switch (blockNum |. Js.Nullable.toOption) {
+       switch (blockNum) {
        | Some(blockNum) =>
          endpoint
-         |. fetchBlock(blockNum |. int_of_string)
+         |. fetchBlock(blockNum)
          |> then_(blockOpt =>
               switch (blockOpt) {
               | Some((block, responseTime)) =>
-                saveBlock(true, block)
-                |> then_(_ => {
-                     let throttleTime =
-                       responseTime *. Env.responseTimeMultiplier;
-                     resolve(throttleTime |. int_of_float);
-                   })
+                switch (
+                  block |> Json.Decode.field("block_num", Json.Decode.int)
+                ) {
+                | actualBlockNum =>
+                  if (blockNum == actualBlockNum) {
+                    [%bs.raw {|block.irreversible = true|}] |. ignore;
+                    Env.Db.save(block)
+                    |> then_(_ => {
+                         let throttleTime =
+                           responseTime *. Env.responseTimeMultiplier;
+                         resolve(throttleTime |. int_of_float);
+                       })
+                    |> catch(error => {
+                         Log.error(
+                           __MODULE__,
+                           {j|Error saving block from $endpoint to DB, added block $blockNum back to the queue.|j},
+                           error,
+                         );
+                         resolve(Env.throttleTime);
+                       });
+                  } else {
+                    Env.Q.push([|blockNum|])
+                    |> then_(_ => {
+                         Log.error(
+                           __MODULE__,
+                           {j|Received unexpected block number $actualBlockNum when fetching block $blockNum from $endpoint|j},
+                           "",
+                         );
+                         resolve(Env.throttleTime);
+                       });
+                  }
+                | exception _ =>
+                  Env.Q.push([|blockNum|])
+                  |> then_(_ => {
+                       Log.error(
+                         __MODULE__,
+                         {j|Couldn't decode block number from response from $endpoint for block $blockNum|j},
+                         block,
+                       );
+                       resolve(Env.throttleTime);
+                     })
+                }
               | None =>
-                redis
-                |. Redis.sadd("blockNums", [|blockNum|])
+                Env.Q.push([|blockNum|])
                 |> then_(_ => {
                      Log.error(
                        __MODULE__,
@@ -71,30 +101,22 @@ let rec fetchNextBlock = endpoint =>
                    })
               }
             )
-       | None =>
-         Log.info(__MODULE__, "Block num queue is empty", "");
-         resolve(Env.throttleTime);
+         |> catch(error =>
+              Env.Q.push([|blockNum|])
+              |> then_(_ => {
+                   Log.error(
+                     __MODULE__,
+                     {j|Error fetching block from $endpoint, added block $blockNum back to the queue.|j},
+                     error,
+                   );
+                   resolve(Env.throttleTime);
+                 })
+            )
+       | None => resolve(Env.throttleTime)
        }
      )
   |> then_(Util.timeoutPromise)
   |> then_(_ => fetchNextBlock(endpoint));
-
-Env.endpoints
-|. Belt.Array.map(fetchNextBlock)
-|. all
-|> then_(_ => Log.info(__MODULE__, "Done", "") |. resolve);
-
-let getBlockCount = () =>
-  "RETURN LENGTH(blocks)"
-  |> Arango.Db.query(Database.db)
-  |> Js.Promise.then_(Arango.Cursor.next)
-  |> Js.Promise.then_(json =>
-       json
-       |. Js.Nullable.toOption
-       |. Belt.Option.map(Json.Decode.int)
-       |. Belt.Option.getWithDefault(0)
-       |. Js.Promise.resolve
-     );
 
 let estimateTimeToComplete = (numBlocksInQueue, blocksPerSecond) => {
   let now = Js.Date.now();
@@ -105,12 +127,10 @@ let estimateTimeToComplete = (numBlocksInQueue, blocksPerSecond) => {
 };
 
 let rec reportStats = () =>
-  getBlockCount()
+  Env.Db.count()
   |> then_(numBlocks =>
        Util.timeoutPromise(Env.reportStatsTimeout)
-       |> then_(_ =>
-            all2((getBlockCount(), redis |. Redis.scard("blockNums")))
-          )
+       |> then_(_ => all2((Env.Db.count(), Env.Q.count())))
        |> then_(((newBlockCount, numInQueue)) => {
             let numNewBlocks = newBlockCount - numBlocks;
             let blocksPerSecond =
@@ -119,14 +139,23 @@ let rec reportStats = () =>
               estimateTimeToComplete(numInQueue, blocksPerSecond);
             let now = Js.Date.make() |. Js.Date.toISOString;
             let message = {j|------------------------
-$blocksPerSecond blocks per second
-$newBlockCount blocks in ArangoDB
-$numInQueue in Redis queue
+        $blocksPerSecond blocks per second
+            $newBlockCount blocks in ArangoDB
+            $numInQueue in Redis queue
 Should finish $timeLeft
 |j};
             Log.info(__MODULE__, message, "");
             reportStats();
           })
      );
+
+Env.Db.setup()
+|> Js.Promise.then_(_ => {
+     Log.info(__MODULE__, "Database setup", "");
+     Env.endpoints
+     |. Belt.Array.map(fetchNextBlock)
+     |. all
+     |> then_(_ => Log.info(__MODULE__, "Done", "") |. resolve);
+   });
 
 reportStats();

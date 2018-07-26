@@ -5,28 +5,23 @@ var Env = require("../Lib/Env.js");
 var Url = require("url");
 var Json = require("@glennsl/bs-json/src/Json.bs.js");
 var Util = require("../Lib/Util.js");
-var Redis = require("../External/Redis.js");
+var Curry = require("bs-platform/lib/js/curry.js");
 var Moment = require("moment");
 var Npmlog = require("npmlog");
 var Request = require("../External/Request.js");
-var Database = require("../Lib/Database.js");
+var Endpoints = require("../Lib/Endpoints.js");
 var Belt_Array = require("bs-platform/lib/js/belt_Array.js");
 var Caml_int32 = require("bs-platform/lib/js/caml_int32.js");
 var Belt_Option = require("bs-platform/lib/js/belt_Option.js");
-var Caml_format = require("bs-platform/lib/js/caml_format.js");
 var Json_decode = require("@glennsl/bs-json/src/Json_decode.bs.js");
 var Json_encode = require("@glennsl/bs-json/src/Json_encode.bs.js");
 var Js_primitive = require("bs-platform/lib/js/js_primitive.js");
 
-function saveBlock(isIrreversible, json) {
-  Util.doNothing(isIrreversible);
-  ((json._key = json.block_num + ""));
-  ((json.irreversible = isIrreversible));
-  var saveOpts = {
-    overwrite: true
-  };
-  return Database.db.collection("blocks").save(json, saveOpts);
+function initialState(endpoints) {
+  return Belt_Array.map(endpoints, Endpoints.initialState);
 }
+
+var emptyState = /* array */[];
 
 function fetchBlock(endpoint, num) {
   return Util.promiseToOption(Request.make(new Url.URL("/v1/chain/get_block", endpoint).toString(), "POST", undefined, Json.stringify(Json_encode.object_(/* :: */[
@@ -35,7 +30,7 @@ function fetchBlock(endpoint, num) {
                               num
                             ],
                             /* [] */0
-                          ])), 5000, undefined, undefined, true, /* () */0).then((function (response) {
+                          ])), 5000, undefined, undefined, true, true, /* () */0).then((function (response) {
                     return Util.parseJsonAsPromise(response.body).then((function (json) {
                                   return Promise.resolve(/* tuple */[
                                               json,
@@ -47,44 +42,62 @@ function fetchBlock(endpoint, num) {
                   })));
 }
 
-var redis = Redis.make(/* () */0);
-
 function fetchNextBlock(endpoint) {
-  return redis.spopAsync("blockNums").then((function (blockNum) {
-                    if (blockNum == null) {
-                      Npmlog.info("FetchBlocks", "Block num queue is empty", "");
-                      return Promise.resolve(Env.throttleTime);
-                    } else {
-                      return fetchBlock(endpoint, Caml_format.caml_int_of_string(blockNum)).then((function (blockOpt) {
-                                    if (blockOpt !== undefined) {
-                                      var match = blockOpt;
-                                      var responseTime = match[1];
-                                      return saveBlock(true, match[0]).then((function () {
-                                                    var throttleTime = responseTime * Env.responseTimeMultiplier;
-                                                    return Promise.resolve(throttleTime | 0);
-                                                  }));
-                                    } else {
-                                      return redis.saddAsync("blockNums", /* array */[blockNum]).then((function () {
-                                                    Npmlog.error("FetchBlocks", "Error fetching block from " + (String(endpoint) + (", added block " + (String(blockNum) + " back to the queue."))), "");
-                                                    return Promise.resolve(Env.throttleTime);
-                                                  }));
-                                    }
+  return Curry._1(Env.Q[/* pop */2], /* () */0).then((function (blockNum) {
+                    if (blockNum !== undefined) {
+                      var blockNum$1 = blockNum;
+                      return fetchBlock(endpoint, blockNum$1).then((function (blockOpt) {
+                                      if (blockOpt !== undefined) {
+                                        var match = blockOpt;
+                                        var responseTime = match[1];
+                                        var block = match[0];
+                                        var exit = 0;
+                                        var actualBlockNum;
+                                        try {
+                                          actualBlockNum = Json_decode.field("block_num", Json_decode.$$int, block);
+                                          exit = 1;
+                                        }
+                                        catch (exn){
+                                          return Curry._1(Env.Q[/* push */1], /* array */[blockNum$1]).then((function () {
+                                                        Npmlog.error("FetchBlocks", "Couldn\'t decode block number from response from " + (String(endpoint) + (" for block " + (String(blockNum$1) + ""))), block);
+                                                        return Promise.resolve(Env.throttleTime);
+                                                      }));
+                                        }
+                                        if (exit === 1) {
+                                          if (blockNum$1 === actualBlockNum) {
+                                            ((block.irreversible = true));
+                                            return Curry._1(Env.Db[/* save */2], block).then((function () {
+                                                            var throttleTime = responseTime * Env.responseTimeMultiplier;
+                                                            return Promise.resolve(throttleTime | 0);
+                                                          })).catch((function (error) {
+                                                          Npmlog.error("FetchBlocks", "Error saving block from " + (String(endpoint) + (" to DB, added block " + (String(blockNum$1) + " back to the queue."))), error);
+                                                          return Promise.resolve(Env.throttleTime);
+                                                        }));
+                                          } else {
+                                            return Curry._1(Env.Q[/* push */1], /* array */[blockNum$1]).then((function () {
+                                                          Npmlog.error("FetchBlocks", "Received unexpected block number " + (String(actualBlockNum) + (" when fetching block " + (String(blockNum$1) + (" from " + (String(endpoint) + ""))))), "");
+                                                          return Promise.resolve(Env.throttleTime);
+                                                        }));
+                                          }
+                                        }
+                                        
+                                      } else {
+                                        return Curry._1(Env.Q[/* push */1], /* array */[blockNum$1]).then((function () {
+                                                      Npmlog.error("FetchBlocks", "Error fetching block from " + (String(endpoint) + (", added block " + (String(blockNum$1) + " back to the queue."))), "");
+                                                      return Promise.resolve(Env.throttleTime);
+                                                    }));
+                                      }
+                                    })).catch((function (error) {
+                                    return Curry._1(Env.Q[/* push */1], /* array */[blockNum$1]).then((function () {
+                                                  Npmlog.error("FetchBlocks", "Error fetching block from " + (String(endpoint) + (", added block " + (String(blockNum$1) + " back to the queue."))), error);
+                                                  return Promise.resolve(Env.throttleTime);
+                                                }));
                                   }));
+                    } else {
+                      return Promise.resolve(Env.throttleTime);
                     }
                   })).then(Util.timeoutPromise).then((function () {
                 return fetchNextBlock(endpoint);
-              }));
-}
-
-Promise.all(Belt_Array.map(Env.endpoints, fetchNextBlock)).then((function () {
-        return Promise.resolve((Npmlog.info("FetchBlocks", "Done", ""), /* () */0));
-      }));
-
-function getBlockCount() {
-  return Database.db.query("RETURN LENGTH(blocks)").then((function (prim) {
-                  return prim.next();
-                })).then((function (json) {
-                return Promise.resolve(Belt_Option.getWithDefault(Belt_Option.map((json == null) ? undefined : Js_primitive.some(json), Json_decode.$$int), 0));
               }));
 }
 
@@ -97,11 +110,11 @@ function estimateTimeToComplete(numBlocksInQueue, blocksPerSecond) {
 }
 
 function reportStats() {
-  return getBlockCount(/* () */0).then((function (numBlocks) {
+  return Curry._1(Env.Db[/* count */1], /* () */0).then((function (numBlocks) {
                 return Util.timeoutPromise(Env.reportStatsTimeout).then((function () {
                                 return Promise.all(/* tuple */[
-                                            getBlockCount(/* () */0),
-                                            redis.scardAsync("blockNums")
+                                            Curry._1(Env.Db[/* count */1], /* () */0),
+                                            Curry._1(Env.Q[/* count */0], /* () */0)
                                           ]);
                               })).then((function (param) {
                               var numInQueue = param[1];
@@ -110,20 +123,26 @@ function reportStats() {
                               var blocksPerSecond = Caml_int32.div(numNewBlocks, Env.reportStatsTimeout / 1000 | 0);
                               var timeLeft = estimateTimeToComplete(numInQueue, blocksPerSecond);
                               new Date().toISOString();
-                              var message = "------------------------\n" + (String(blocksPerSecond) + (" blocks per second\n" + (String(newBlockCount) + (" blocks in ArangoDB\n" + (String(numInQueue) + (" in Redis queue\nShould finish " + (String(timeLeft) + "\n")))))));
+                              var message = "------------------------\n        " + (String(blocksPerSecond) + (" blocks per second\n            " + (String(newBlockCount) + (" blocks in ArangoDB\n            " + (String(numInQueue) + (" in Redis queue\nShould finish " + (String(timeLeft) + "\n")))))));
                               Npmlog.info("FetchBlocks", message, "");
                               return reportStats(/* () */0);
                             }));
               }));
 }
 
+Curry._1(Env.Db[/* setup */0], /* () */0).then((function () {
+        Npmlog.info("FetchBlocks", "Database setup", "");
+        return Promise.all(Belt_Array.map(Env.endpoints, fetchNextBlock)).then((function () {
+                      return Promise.resolve((Npmlog.info("FetchBlocks", "Done", ""), /* () */0));
+                    }));
+      }));
+
 reportStats(/* () */0);
 
-exports.saveBlock = saveBlock;
+exports.initialState = initialState;
+exports.emptyState = emptyState;
 exports.fetchBlock = fetchBlock;
-exports.redis = redis;
 exports.fetchNextBlock = fetchNextBlock;
-exports.getBlockCount = getBlockCount;
 exports.estimateTimeToComplete = estimateTimeToComplete;
 exports.reportStats = reportStats;
-/* redis Not a pure module */
+/*  Not a pure module */

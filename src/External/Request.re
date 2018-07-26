@@ -16,15 +16,21 @@ module Options = {
     url: string,
     [@bs.as "method"]
     method_: string,
+    [@bs.optional]
     json: bool,
+    [@bs.optional]
     resolveWithFullResponse: bool,
     [@bs.optional]
     body: string,
+    [@bs.optional]
     simple: bool,
     [@bs.optional]
     time: bool,
+    [@bs.optional]
     timeout: int,
+    [@bs.optional]
     headers: Js.Dict.t(string),
+    [@bs.optional]
     encoding: Js.Null_undefined.t(string),
   };
 };
@@ -54,6 +60,7 @@ let make =
       ~timeout=0,
       ~headers=?,
       ~encoding=Js.Null_undefined.undefined,
+      ~simple=?,
       ~time=?,
       (),
     ) =>
@@ -63,7 +70,7 @@ let make =
     ~json,
     ~resolveWithFullResponse=true,
     ~body?,
-    ~simple=false,
+    ~simple?,
     ~time?,
     ~timeout,
     ~headers=headers |> Js.Option.getWithDefault([||]) |> Js.Dict.fromArray,

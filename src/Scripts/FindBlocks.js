@@ -3,9 +3,9 @@
 
 var Env = require("../Lib/Env.js");
 var Util = require("../Lib/Util.js");
+var Curry = require("bs-platform/lib/js/curry.js");
 var Redis = require("../External/Redis.js");
 var Npmlog = require("npmlog");
-var Database = require("../Lib/Database.js");
 var Endpoints = require("../Lib/Endpoints.js");
 var Belt_Array = require("bs-platform/lib/js/belt_Array.js");
 var Caml_primitive = require("bs-platform/lib/js/caml_primitive.js");
@@ -14,31 +14,45 @@ var redis = Redis.make(/* () */0);
 
 function findNewBlocks() {
   return Promise.all(/* tuple */[
-                Database.getLargestBlockNum(/* () */0),
-                Endpoints.updateInfoForStates(Endpoints.initialStates(Env.endpoints))
-              ]).then((function (param) {
-                var largestDbBlockNum = param[0];
-                Npmlog.info("FindBlocks", "Largest block number from database:", largestDbBlockNum);
-                var largestEndpointBlockNums = Endpoints.getLargestBlockNums(param[1]);
-                Npmlog.info("FindBlocks", "Largest block number from endpoints:", largestEndpointBlockNums[/* head */0]);
-                var startBlockNum = Caml_primitive.caml_int_min(largestDbBlockNum + 1 | 0, largestEndpointBlockNums[/* irreversible */1]);
-                var endBlockNum = largestEndpointBlockNums[/* head */0];
-                var blockNumChunks = Util.chunkArray(Belt_Array.map(Belt_Array.range(startBlockNum, endBlockNum), (function (prim) {
-                            return String(prim);
-                          })), 1000);
-                return Belt_Array.reduce(blockNumChunks, Promise.resolve(0), (function (promise, blockNums) {
-                              return promise.then((function (totalAdded) {
-                                            return redis.saddAsync("blockNums", blockNums).then((function (numAdded) {
-                                                          Npmlog.info("FindBlocks", "Added " + (String(numAdded) + " items to the blockNums queue"), "");
-                                                          return Promise.resolve(numAdded + totalAdded | 0);
-                                                        }));
-                                          }));
-                            }));
+                  Curry._1(Env.Db[/* largestBlockNum */3], /* () */0),
+                  Endpoints.updateInfoForStates(Endpoints.initialStates(Env.endpoints))
+                ]).then((function (param) {
+                  var dbBlockNum = param[0];
+                  var match = Endpoints.getLargestBlockNums(param[1]);
+                  var liveBlockNums = match[1];
+                  var head = liveBlockNums[/* head */0];
+                  var irreversible = liveBlockNums[/* irreversible */1];
+                  var diff = head - dbBlockNum | 0;
+                  Npmlog.info("FindBlocks", "Block numbers: db=" + (String(dbBlockNum) + (" irreversible=" + (String(irreversible) + (" head=" + (String(head) + (" diff=" + (String(diff) + ""))))))), "");
+                  var startBlockNum = Caml_primitive.caml_int_min(dbBlockNum + 1 | 0, liveBlockNums[/* irreversible */1]);
+                  var endBlockNum = liveBlockNums[/* head */0];
+                  var blockNumChunks = Util.chunkArray(Belt_Array.map(Belt_Array.range(startBlockNum, endBlockNum), (function (prim) {
+                              return String(prim);
+                            })), 1000);
+                  return Belt_Array.reduce(blockNumChunks, Promise.resolve(0), (function (promise, blockNums) {
+                                return promise.then((function (totalAdded) {
+                                              return redis.saddAsync("blockNums", blockNums).then((function (numAdded) {
+                                                            if (numAdded > 0) {
+                                                              Npmlog.info("FindBlocks", "Added " + (String(numAdded) + " items to the blockNums queue"), "");
+                                                            }
+                                                            return Promise.resolve(numAdded + totalAdded | 0);
+                                                          }));
+                                            }));
+                              }));
+                })).then((function () {
+                return findNewBlocks(/* () */0);
               }));
 }
 
-Database.setup(/* () */0).then((function () {
-        return findNewBlocks(/* () */0);
+Curry._1(Env.Db[/* setup */0], /* () */0).then((function () {
+            return findNewBlocks(/* () */0);
+          })).then((function () {
+          return Curry._1(Env.Db[/* findMissing */4], /* () */0);
+        })).then((function () {
+        return Promise.resolve(setInterval((function () {
+                          Curry._1(Env.Db[/* findMissing */4], /* () */0);
+                          return /* () */0;
+                        }), 900000));
       }));
 
 exports.redis = redis;

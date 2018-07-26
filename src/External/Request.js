@@ -19,7 +19,7 @@ var UnknownError = Caml_exceptions.create("Request.UnknownError");
 
 var $$Error = /* module */[];
 
-function make(url, $staropt$star, $staropt$star$1, body, $staropt$star$2, headers, $staropt$star$3, time, _) {
+function make(url, $staropt$star, $staropt$star$1, body, $staropt$star$2, headers, $staropt$star$3, simple, time, _) {
   var method__ = $staropt$star !== undefined ? $staropt$star : "GET";
   var json = $staropt$star$1 !== undefined ? $staropt$star$1 : false;
   var timeout = $staropt$star$2 !== undefined ? $staropt$star$2 : 0;
@@ -29,13 +29,15 @@ function make(url, $staropt$star, $staropt$star$1, body, $staropt$star$2, header
     method: method__,
     json: json,
     resolveWithFullResponse: true,
-    simple: false,
     timeout: timeout,
     headers: Js_dict.fromArray(Js_option.getWithDefault(/* array */[], headers)),
     encoding: encoding
   };
   if (body) {
     tmp.body = Js_primitive.valFromOption(body);
+  }
+  if (simple) {
+    tmp.simple = Js_primitive.valFromOption(simple);
   }
   if (time) {
     tmp.time = Js_primitive.valFromOption(time);
