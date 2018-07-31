@@ -1,32 +1,19 @@
 version: '3'
 
-networks:
-  lan:
-
 services:
 
   arango:
-    build:
-      context: arango
-    image: arangodb/arangodb:devel
+    image: arangodb/arangodb:latest
     ports:
-      - 8529:8529 
+      - 8529:8529
     environment:
       - ARANGO_ROOT_PASSWORD=openSesame
 
-  # elasticsearch:
-  #   image: docker.elastic.co/elasticsearch/elasticsearch:6.3.1
-  #   ports:
-  #     - 9200:9200
-  #     - 9300:9300
-  #   environment:
-  #     - discovery.type=single-node
-
-  # mongo:
-  #   image: mongo
-  #   command: --smallfiles
-  #   ports:
-  #     - 27017:27017
+  mongo:
+    image: mongo
+    command: --smallfiles
+    ports:
+      - 27017:27017
 
   redis:
     image: redis:latest
